@@ -33,6 +33,7 @@ from gkeepcore.git_commands import is_non_bare_repo, git_head_hash, \
     git_pull, git_clone_remote
 from gkeepcore.gkeep_exception import GkeepException
 from gkeepcore.path_utils import student_assignment_repo_path
+from gkeepcore.user_interface import JsonInfo
 
 
 def clone_repo(local_repo_path, remote_url):
@@ -150,7 +151,8 @@ def fetch_student_submission(class_name: str, assignment_name: str,
 
 
 def fetch_assignment_submissions(class_name: str, assignment_name: str,
-                                 class_submission_path: str, info: dict):
+                                 class_submission_path: str,
+                                 info: JsonInfo):
     """
     Fetch submissions for a single assignment.
 
@@ -163,8 +165,6 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
      for the class
     :param info: info dictionary
     """
-
-    assignment_info = info[class_name]['assignments'][assignment_name]
 
     print()
     print('Fetching submissions for {0} in class {1}'
@@ -179,8 +179,8 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
     assignment_reports_path = os.path.join(class_submission_path,
                                            assignment_name, 'reports')
 
-    remote_reports_path = assignment_info['reports_repo']['path']
-    remote_reports_hash = assignment_info['reports_repo']['hash']
+    remote_reports_path = info.assignment_path(class_name, assignment_name)
+    remote_reports_hash = info.assignment_hash(class_name, assignment_name)
 
     remote_git_url = build_clone_url(remote_reports_path)
 
@@ -190,17 +190,11 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
     else:
         clone_repo(assignment_reports_path, remote_git_url)
 
-    class_assignments_info = info[class_name]['assignments']
-    class_students_info = info[class_name]['students']
-    assignment_info = class_assignments_info[assignment_name]
-    students_repos_info = assignment_info['students_repos']
-
     # fetch each student's submission
-    for username in info[class_name]['students']:
-        remote_head_hash = students_repos_info[username]['hash']
+    for username in info.student_list(class_name):
+        remote_head_hash = info.assignment_by_student_hash()
 
-        last_first_username = \
-            class_students_info[username]['last_first_username']
+        last_first_username = info.last_first_username(class_name, username)
 
         fetch_student_submission(class_name, assignment_name,
                                  assignment_submissions_path, remote_head_hash,
@@ -282,9 +276,9 @@ def fetch_submissions(class_name: str, assignment_name: str,
 
     # build list of assignments to fetch
     if assignment_name == 'all':
-        assignments = list(info[class_name]['assignments'].keys())
+        assignments = info.assignment_list(class_name)
     else:
-        if assignment_name not in info[class_name]['assignments']:
+        if assignment_name not in info.assignment_list(class_name):
             error = ('Assignment {0} does not exist in class {1}'
                      .format(assignment_name, class_name))
             raise GkeepException(error)
