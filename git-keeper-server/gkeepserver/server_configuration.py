@@ -53,6 +53,7 @@ Attributes:
 
     keeper_user - username of the user running gkeepd
     keeper_group - group name of the user running gkeepd
+    tester_user - username of the user that runs the tests
     faculty_group - group that all faculty accounts belong to
     student_group - group that all student accounts belong to
 
@@ -72,7 +73,7 @@ Attributes:
     smtp_port - SMTP server port
     email_username - username for the SMTP server
     email_password - password for the SMTP server
-
+    email_interval - minimum amount of time to wait between sending emails
 """
 
 import configparser
@@ -80,6 +81,7 @@ import os
 from getpass import getuser
 
 from gkeepcore.gkeep_exception import GkeepException
+from gkeepcore.path_utils import user_home_dir
 from gkeepserver.gkeepd_logger import LogLevel
 
 
@@ -151,15 +153,25 @@ class ServerConfiguration:
 
         self._parsed = True
 
+    @property
+    def run_action_sh_file_path(self):
+        """
+        Get the location of run_action.sh
+
+        run_action.sh is in the home directory of the tester user, so that user
+        must exist before this is called.
+
+        :return: location of run_action.sh
+        """
+
+        # path to run_action.sh
+        return os.path.join(user_home_dir(config.tester_user), 'run_action.sh')
+
     def _initialize_default_attributes(self):
         # Initialize attributes that have default values
 
         # path to .gitconfig
         self.gitconfig_file_path = os.path.join(self.home_dir, '.gitconfig')
-
-        # path to run_action.sh
-        self.run_action_sh_file_path = os.path.join(self.home_dir,
-                                                    'run_action.sh')
 
         # logging
         self.log_file_path = os.path.join(self.home_dir, 'gkeepd.log')
@@ -178,6 +190,7 @@ class ServerConfiguration:
         # users and groups
         self.keeper_user = 'keeper'
         self.keeper_group = 'keeper'
+        self.tester_user = 'tester'
         self.faculty_group = 'faculty'
         self.student_group = 'student'
 
@@ -185,6 +198,7 @@ class ServerConfiguration:
         self.use_tls = True
         self.email_username = None
         self.email_password = None
+        self.email_interval = 2
 
     def _parse_config_file(self):
         # Use a ConfigParser object to parse the configuration file and store
@@ -225,7 +239,8 @@ class ServerConfiguration:
         optional_options = [
             'use_tls',
             'email_username',
-            'email_password'
+            'email_password',
+            'email_interval',
         ]
 
         for name in optional_options:
@@ -244,6 +259,16 @@ class ServerConfiguration:
                 self.use_tls = False
             else:
                 error = 'use_tls must be true or false'
+                raise ServerConfigurationError(error)
+
+        # email_interval must be a non-negative number
+        if isinstance(self.email_interval, str):
+            try:
+                self.email_interval = float(self.email_interval)
+                if self.email_interval < 0:
+                    raise ValueError
+            except ValueError:
+                error = 'email_interval must be a non-negative number'
                 raise ServerConfigurationError(error)
 
         self._ensure_options_are_valid('email')
@@ -267,6 +292,7 @@ class ServerConfiguration:
             'test_thread_count',
             'keeper_user',
             'keeper_group',
+            'tester_user',
             'faculty_group',
             'student_group'
         ]
