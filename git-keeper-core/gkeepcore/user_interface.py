@@ -79,9 +79,9 @@ class JsonInfo:
         :return: True if the assignment is published, False otherwise
         """
 
-        return self.info_dict[class_name][assignment]['published']
+        return self.info_dict[class_name]['assignments'][assignment]['published']
 
-    def assignment_hash(self, class_name: str, assignment: str) -> str:
+    def reports_hash(self, class_name: str, assignment: str) -> str:
         """
         Get the hash of an assignment.
 
@@ -90,9 +90,9 @@ class JsonInfo:
         :return: assignment's hash
         """
 
-        return self.info_dict[class_name][assignment]['hash']
+        return self.info_dict[class_name]['assignments'][assignment]['reports_repo']['hash']
 
-    def assignment_path(self, class_name: str, assignment: str) -> str:
+    def reports_path(self, class_name: str, assignment: str) -> str:
         """
         Get the path of an assignment.
 
@@ -101,7 +101,7 @@ class JsonInfo:
         :return: assignment's path
         """
 
-        return self.info_dict[class_name][assignment]['path']
+        return self.info_dict[class_name]['assignments'][assignment]['reports_repo']['path']
 
     def student_submitted_count(self, class_name: str, assignment: str) -> int:
         """

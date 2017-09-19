@@ -179,8 +179,8 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
     assignment_reports_path = os.path.join(class_submission_path,
                                            assignment_name, 'reports')
 
-    remote_reports_path = info.assignment_path(class_name, assignment_name)
-    remote_reports_hash = info.assignment_hash(class_name, assignment_name)
+    remote_reports_path = info.reports_path(class_name, assignment_name)
+    remote_reports_hash = info.reports_hash(class_name, assignment_name)
 
     remote_git_url = build_clone_url(remote_reports_path)
 
@@ -192,7 +192,7 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
 
     # fetch each student's submission
     for username in info.student_list(class_name):
-        remote_head_hash = info.assignment_by_student_hash()
+        remote_head_hash = info.assignment_by_student_hash(class_name, assignment_name, username)
 
         last_first_username = info.last_first_username(class_name, username)
 
