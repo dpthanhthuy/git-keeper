@@ -197,8 +197,8 @@ class JsonInfo:
                 student_assignments.append(an_assignment)
         return student_assignments
 
-    def assignment_by_student_hash(self, class_name: str, assignment: str,
-                                   username: str) -> str:
+    def student_assignment_hash(self, class_name: str, assignment: str,
+                                username: str) -> str:
         """
         Get the hash of a student's assignment.
 
@@ -210,8 +210,8 @@ class JsonInfo:
         return self.info_dict[class_name]['assignments'][assignment][
             'students_repos'][username]['hash']
 
-    def assignment_by_student_path(self, class_name: str, assignment: str,
-                                   username: str) -> str:
+    def student_assignment_path(self, class_name: str, assignment: str,
+                                username: str) -> str:
         """
         Get the path of a student's assignment.
 
