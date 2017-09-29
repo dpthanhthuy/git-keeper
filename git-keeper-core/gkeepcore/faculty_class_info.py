@@ -1,13 +1,36 @@
+# Copyright 2017 Thuy Dinh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+Provides functionality for extracting information from the faculty's info
+dictionary.
+"""
+
 from time import localtime
 
 
-class JsonInfo:
-    """Provides methods for extracting information from the info dictionary."""
+class FacultyClassInfo:
+    """
+    Provides methods for extracting information from a faculty's info
+    dictionary from the server.
+    """
 
     def __init__(self, info_dict: dict):
         """
         Create the object
-        :param info_dict: dictionary of info
+        :param info_dict: dictionary of information about the faculty's classes
         """
 
         self.info_dict = info_dict
@@ -62,10 +85,10 @@ class JsonInfo:
 
     def assignment_list(self, class_name: str) -> list:
         """
-        Get the info dictionary of assignments for a class.
+        Get the  of assignments for a class.
 
         :param class_name: name of a class
-        :return: info dictionary of assignments for a class
+        :return:  of assignments for a class
         """
 
         return list(self.info_dict[class_name]['assignments'])
@@ -79,29 +102,32 @@ class JsonInfo:
         :return: True if the assignment is published, False otherwise
         """
 
-        return self.info_dict[class_name]['assignments'][assignment]['published']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['published']
 
     def reports_hash(self, class_name: str, assignment: str) -> str:
         """
-        Get the hash of an assignment.
+        Get the reports hash of an assignment.
 
         :param class_name: name of a class
         :param assignment: name of an assignment
-        :return: assignment's hash
+        :return: the reports hash of an assignment
         """
 
-        return self.info_dict[class_name]['assignments'][assignment]['reports_repo']['hash']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['reports_repo']['hash']
 
     def reports_path(self, class_name: str, assignment: str) -> str:
         """
-        Get the path of an assignment.
+        Get the reports path of an assignment.
 
         :param class_name: name of a class
         :param assignment: name of an assignment
-        :return: assignment's path
+        :return: the reports path of an assignment
         """
 
-        return self.info_dict[class_name]['assignments'][assignment]['reports_repo']['path']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['reports_repo']['path']
 
     def student_submitted_count(self, class_name: str, assignment: str) -> int:
         """
@@ -114,27 +140,31 @@ class JsonInfo:
 
         students_submitted = 0
         for student in self.student_list(class_name):
-            if self.submission_count(class_name, assignment, student) != 0:
+            submission_count = \
+                self.student_submission_count(class_name, assignment, student)
+            if submission_count != 0:
                 students_submitted += 1
         return students_submitted
 
     def students_submitted_list(self, class_name: str, assignment: str) \
             -> list:
         """
-        Get the info dictionary of students who submitted an assignment.
+        Get the list of students who submitted an assignment.
 
         :param class_name: name of a class
         :param assignment: name of an assignment
-        :return: info dictionary of students who submitted an assignment
+        :return: list of students who submitted an assignment
         """
 
         students_submitted = []
         for student in self.student_list(class_name):
-            if self.submission_count(class_name, assignment, student) != 0:
+            submission_count = \
+                self.student_submission_count(class_name, assignment, student)
+            if submission_count != 0:
                 students_submitted.append(student)
         return students_submitted
 
-    def email_address(self, class_name: str, username: str) -> str:
+    def student_email_address(self, class_name: str, username: str) -> str:
         """
         Get the email address of a student.
 
@@ -143,10 +173,10 @@ class JsonInfo:
         :return: student's email address
         """
 
-        return self.info_dict[class_name]['students'][username][
-            'email_address']
+        student_info = self.info_dict[class_name]['students'][username]
+        return student_info['email_address']
 
-    def first_name(self, class_name: str, username: str) -> str:
+    def student_first_name(self, class_name: str, username: str) -> str:
         """
         Get the first name of a student.
 
@@ -157,7 +187,7 @@ class JsonInfo:
 
         return self.info_dict[class_name]['students'][username]['first']
 
-    def home_dir(self, class_name: str, username: str) -> str:
+    def student_home_dir(self, class_name: str, username: str) -> str:
         """
         Get the home directory of a student.
 
@@ -168,7 +198,7 @@ class JsonInfo:
 
         return self.info_dict[class_name]['students'][username]['home_dir']
 
-    def last_name(self, class_name: str, username: str) -> str:
+    def student_last_name(self, class_name: str, username: str) -> str:
         """
         Get the last name of a student.
 
@@ -179,7 +209,7 @@ class JsonInfo:
 
         return self.info_dict[class_name]['students'][username]['last']
 
-    def assignments_by_student_list(self, class_name: str, username: str) \
+    def student_assignments(self, class_name: str, username: str) \
             -> list:
         """
         Get all the assignments for a student.
@@ -207,8 +237,9 @@ class JsonInfo:
         :param username: username of a student
         :return: the hash of a student's assignment
         """
-        return self.info_dict[class_name]['assignments'][assignment][
-            'students_repos'][username]['hash']
+
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['students_repos'][username]['hash']
 
     def student_assignment_path(self, class_name: str, assignment: str,
                                 username: str) -> str:
@@ -221,11 +252,11 @@ class JsonInfo:
         :return: the path of a student's assignment
         """
 
-        return self.info_dict[class_name]['assignments'][assignment][
-            'students_repos'][username]['path']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['students_repos'][username]['path']
 
-    def submission_count(self, class_name: str, assignment: str,
-                         username: str) -> int:
+    def student_submission_count(self, class_name: str, assignment: str,
+                                 username: str) -> int:
         """
         Get the submission count of a student for an assignment.
 
@@ -235,10 +266,11 @@ class JsonInfo:
         :return: student's submission count for an assignment
         """
 
-        return self.info_dict[class_name]['assignments'][assignment][
-            'students_repos'][username]['submission_count']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['students_repos'][username]['submission_count']
 
-    def time(self, class_name: str, assignment: str, username: str):
+    def student_submission_time(self, class_name: str, assignment: str,
+                                username: str):
         """
         Get the Unix time a student last submitted an assignment.
 
@@ -248,25 +280,28 @@ class JsonInfo:
         :return: the Unix time a student last submitted an assignment.
         """
 
-        return self.info_dict[class_name]['assignments'][assignment][
-            'students_repos'][username]['time']
+        assignment_info = self.info_dict[class_name]['assignments'][assignment]
+        return assignment_info['students_repos'][username]['time']
 
-    def time_converted(self, class_name: str, assignment: str, username: str)\
-            -> str:
+    def submission_time_string(self, class_name: str, assignment: str,
+                               username: str,
+                               format_string='{1}/{2}/{0} {3}:{4}:{5}') -> str:
         """
-        Get a string of the time a student last submitted an assignment
-        (month/day/year hour:min:second)
+        Get a string of the time a student last submitted an assignment.
+        You can pass your own format string. These are the fields:
+        {0}: year, {1}: day, {2}: month, {3}: hour, {4}: minute, {5}: second
 
         :param class_name: name of a class
         :param assignment: name of an assignment
         :param username: username of a student
+        :param format_string: the format of the time string
         :return: a string of the time a student last submitted an assignment
         """
 
-        time = localtime(self.time(class_name, assignment, username))
-        return '{0}/{1}/{2} {3}:{4}:{5}'.\
-            format(time.tm_mon, time.tm_mday, time.tm_year,
-                   time.tm_hour, time.tm_min, time.tm_sec)
+        time = localtime(self.student_submission_time(class_name, assignment,
+                                                      username))
+        return format_string.format(time.tm_year, time.tm_mon, time.tm_mday,
+                                    time.tm_hour, time.tm_min, time.tm_sec)
 
     def get_username_from_name(self, class_name: str, name: str) -> str:
         """
@@ -280,12 +315,13 @@ class JsonInfo:
 
         for username in self.student_list(class_name):
             name_form = '{0}, {1}'.format(
-                self.last_name(class_name, username),
-                self.first_name(class_name, username))
+                self.student_last_name(class_name, username),
+                self.student_first_name(class_name, username))
             if name_form == name:
                 return username
 
-    def last_first_username(self, class_name: str, username: str) -> str:
+    def student_last_first_username(self, class_name: str, username: str) \
+            -> str:
         """
         Get the last name, first name, and username of a student.
 
@@ -294,5 +330,6 @@ class JsonInfo:
         :return: a string in the format "last name, first name, username"
 
         """
-        return self.info_dict[class_name]['students'][username][
-            'last_first_username']
+
+        student_info = self.info_dict[class_name]['students'][username]
+        return student_info['last_first_username']

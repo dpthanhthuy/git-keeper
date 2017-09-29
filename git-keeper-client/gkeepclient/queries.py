@@ -94,34 +94,34 @@ def list_recent(number_of_days):
 
     info = server_interface.get_info()
 
+
     for class_name in sorted(info.class_list()):
         class_name_printed = False
 
         for assignment_name in sorted(info.assignment_list(class_name)):
-            students_info = info.students_repo(class_name, assignment_name)
+            students_submitted = info.students_submitted_list(class_name,
+                                                              assignment_name)
 
-            if students_info is None:
+            if students_submitted is None:
                 continue
 
             cutoff_time = time() - (60 * 60 * 24 * number_of_days)
 
             recent = []
 
-            for username in students_info:
+            for username in students_submitted:
 
-                if 'submission_count' in \
-                        info.student_assignment(
-                            class_name, assignment_name, username) \
-                        and info.submission_count(
-                            class_name, assignment_name, username) == 0:
+                if info.student_submission_count(
+                        class_name, assignment_name, username) == 0:
                     continue
 
-                if info.time(
+                if info.student_submission_time(
                         class_name, assignment_name, username) >= cutoff_time:
                     recent.append(
-                        (info.time(class_name, assignment_name, username),
-                         info.first_name(class_name, username),
-                         info.last_name(class_name, username)))
+                        (info.student_submission_time(
+                            class_name, assignment_name, username),
+                         info.student_first_name(class_name, username),
+                         info.student_last_name(class_name, username)))
 
             if len(recent) > 0:
                 recent.sort()

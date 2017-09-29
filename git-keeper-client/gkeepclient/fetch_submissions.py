@@ -33,7 +33,7 @@ from gkeepcore.git_commands import is_non_bare_repo, git_head_hash, \
     git_pull, git_clone_remote
 from gkeepcore.gkeep_exception import GkeepException
 from gkeepcore.path_utils import student_assignment_repo_path
-from gkeepcore.user_interface import JsonInfo
+from gkeepcore.faculty_class_info import FacultyClassInfo
 
 
 class FetchedHashCache:
@@ -216,7 +216,7 @@ def fetch_student_submission(class_name: str, assignment_name: str,
 
 def fetch_assignment_submissions(class_name: str, assignment_name: str,
                                  class_submission_path: str,
-                                 info: JsonInfo):
+                                 info: FacultyClassInfo):
     """
     Fetch submissions for a single assignment.
 
@@ -261,7 +261,7 @@ def fetch_assignment_submissions(class_name: str, assignment_name: str,
         remote_head_hash = info.student_assignment_hash(class_name, assignment_name, username)
         remote_repo_path = info.student_assignment_path(class_name, assignment_name, username)
 
-        last_first_username = info.last_first_username(class_name, username)
+        last_first_username = info.student_last_first_username(class_name, username)
 
         fetch_student_submission(class_name, assignment_name,
                                  assignment_submissions_path, remote_head_hash,
