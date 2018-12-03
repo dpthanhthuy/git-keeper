@@ -23,8 +23,5 @@ setup(
     entry_points={
         'console_scripts': ['gkeepgui=gkeepgui.gui_main_entry:main'],
     },
-    install_requires=['git-keeper-client'],
-
-    # setup_requires=['pytest-runner'],
-    # tests_require=['pytest'],
+    install_requires=['git-keeper-client', 'pyqt5'],
 )

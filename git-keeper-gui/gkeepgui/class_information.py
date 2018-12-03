@@ -1,3 +1,18 @@
+# Copyright 2018 Thuy Dinh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """
 Provides an interface for accessing information about a class, assignment,
 student, or submission. Information is extracted from GlobalInfo.
@@ -70,30 +85,12 @@ class FacultyClass:
 
         return self._assignment_list
 
-    def __repr__(self):
-        """
-        Get the name of the class as the __repr__ string.
-
-        :return: name of the class
-        """
-
-        return self.name
-
 
 class Student:
     """
     Stores the attributes of a student. Provides methods for accessing these
     attributes.
 
-    Attributes stored:
-        parent_class: FacultyClass object representing the parent class
-        username
-        email
-        first_name
-        last_name
-        last_first_username
-        home_dir
-        average_submission_count
     """
 
     def __init__(self, a_class: FacultyClass, username: str):
@@ -150,14 +147,6 @@ class Assignment:
     Stores the attribute of an assignment. Provides methods for accessing
     these attributes.
 
-    Attributes stored:
-        parent_class: FacultyClass object representing the parent class
-        name
-        is_published
-        reports_hash
-        reports_path
-        students_submitted_count
-        fetched_path
     """
 
     def __init__(self, a_class: FacultyClass, assignment: str):
@@ -171,7 +160,6 @@ class Assignment:
         """
 
         self._info = global_info.info
-
 
         self.parent_class = a_class
         self.name = assignment
@@ -239,28 +227,12 @@ class Assignment:
 
         return fetched_list
 
-    def __repr__(self):
-        """
-        Set the __repr__ string of Assignment to assignment's name
-        :return:
-        """
-        return self.name
-
 
 class Submission:
     """
     Stores the attributes of a submission. Provides methods for accessing
     these attributes.
 
-    Attributes stored:
-        assignment
-        student
-        parent_class
-        server_hash
-        student_path
-        submission_count
-        time
-        fetched_path
     """
 
     def __init__(self, student: Student, assignment: Assignment):

@@ -1,11 +1,24 @@
+# Copyright 2018 Thuy Dinh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """
 Stores the information and attributes for implementing a graphical user
 interface to interact with git-keeper. Includes classes that represent the
 main windows and tables used by the GUI.
 """
 
-
-import json
 
 import os
 
@@ -15,7 +28,7 @@ from gkeepgui.class_information import FacultyClass, Assignment, Submission
 from gkeepgui.gui_configuration import gui_config
 
 from gkeepgui.global_info import global_info
-from gkeepgui.gui_exception import GuiException, GuiFileException
+from gkeepgui.gui_exception import GuiException
 from gkeepgui.submissions_json import submissions_paths
 
 
@@ -104,14 +117,14 @@ class ClassWindowInfo:
         self.current_assignments_table = AssignmentTable(self.current_class)
         self.current_submissions_table = None
 
-    def select_assignment(self, rows):
+    def select_assignment(self, rows: list):
         """
         Select an assignment when the row containing the column is selected.
         Creates the submissions table.
 
         If no assignment is selected, sets current submissions table to None.
 
-        :param rows: index of the row. None if no row is selected.
+        :param rows: indices of selected rows. None if no row is selected.
         :return: none
         """
         self.current_assignments_table.select_row(rows)
@@ -122,15 +135,15 @@ class ClassWindowInfo:
         else:
             self.current_submissions_table = None
 
-    def select_submission(self, row):
+    def select_submission(self, rows: list):
         """
         Select a submission when the row containing the submission is
         selected.
 
-        :param row: index of the row
+        :param rows: index of the row
         :return: none
         """
-        self.current_submissions_table.select_row(row)
+        self.current_submissions_table.select_row(rows)
 
     def set_description(self):
         """
@@ -143,7 +156,7 @@ class ClassWindowInfo:
         assignment_count = self.current_class.assignment_count
         description = ('Number of students: {} \n' +
                        'Number of assignments: {}').format(student_count,
-                                                          assignment_count)
+                                                           assignment_count)
         return description
 
     def fetch_assignment(self, assignment: Assignment):
@@ -161,7 +174,7 @@ class ClassWindowInfo:
         if not os.path.isdir(fetched_path):
             os.makedirs(fetched_path)
             fetch_submissions.fetch_submissions(self.current_class.name,
-                                        assignment.name, path)
+                                                assignment.name, path)
 
         assignment.set_fetched_path(path)
 
@@ -189,7 +202,6 @@ class ClassWindowInfo:
         for assignment in self.current_assignments_table.current_assignment:
             self.fetch_assignment(assignment)
 
-
         self.refresh()
 
     def change_submissions_sorting_order(self, col: int):
@@ -208,11 +220,16 @@ class ClassWindowInfo:
 
         if current_col == col:
             if current_order == 0:
-                self.current_submissions_table.set_sorting_order(col, 1)
+                submissions = \
+                    self.current_submissions_table.set_sorting_order(col, 1)
             else:
-                self.current_submissions_table.set_sorting_order(col, 0)
+                submissions = \
+                    self.current_submissions_table.set_sorting_order(col, 0)
         else:
-            self.current_submissions_table.set_sorting_order(col, 0)
+            submissions = \
+                self.current_submissions_table.set_sorting_order(col, 0)
+
+        self.current_submissions_table.set_rows_content(submissions)
 
         return self.current_submissions_table.sorting_order
 
@@ -229,11 +246,16 @@ class ClassWindowInfo:
 
         if current_col == col:
             if current_order == 0:
-                self.current_assignments_table.set_sorting_order(col, 1)
+                assignments = \
+                    self.current_assignments_table.set_sorting_order(col, 1)
             else:
-                self.current_assignments_table.set_sorting_order(col, 0)
+                assignments = \
+                    self.current_assignments_table.set_sorting_order(col, 0)
         else:
-            self.current_assignments_table.set_sorting_order(col, 0)
+            assignments = \
+                self.current_assignments_table.set_sorting_order(col, 0)
+
+        self.current_assignments_table.set_rows_content(assignments)
 
 
 class StudentWindowInfo:
@@ -413,11 +435,11 @@ class Table:
         for col in range(self.col_count):
             self.rows_content[row][col] = content_list[col]
 
-    def select_row(self, row: int):
+    def select_rows(self, row: list):
         """
-        Select a row.
+        Select row(s).
 
-        :param row: index of selected row, None if no row is selected
+        :param row: index of selected row(s), None if no row is selected
         :return: none
         """
         pass
@@ -435,26 +457,6 @@ class Table:
         :return: none
         """
         pass
-
-    def __repr__(self):
-        """
-        Change the __repr__ of the class to represent the table.
-
-        :return: content of the table
-        """
-        table = ''
-
-        for col in self.col_headers:
-            table += col + '        '
-
-        table += '\n'
-
-        for row in self.rows_content:
-            for cell in row:
-                table += cell + '       '
-            table += '\n'
-
-        return table
 
 
 class AssignmentTable(Table):
@@ -476,12 +478,7 @@ class AssignmentTable(Table):
 
         Set all attributes. Set the type of
         selection to all the cells of a row. Sort the table by the 'Assignment
-        Name' column in ascending order.
-
-        Attributes stored:
-            _class: Faculty Class object representing the class
-            current_assignment: Assignment object representing the selected
-            assignment
+        Name' column in ascending order. Set the contents of the table.
 
         :param a_class: parent class of the assignment
         """
@@ -493,7 +490,8 @@ class AssignmentTable(Table):
         self.set_row_count(a_class.assignment_count)
         self.set_column_count(2)
         self.set_column_headers(['Assignment Name', 'Students Submitted'])
-        self.set_sorting_order(0, 0)
+        assignments = self.set_sorting_order(0, 0)
+        self.set_rows_content(assignments)
 
     def set_rows_content(self, assignments: list):
         """
@@ -516,10 +514,10 @@ class AssignmentTable(Table):
 
     def select_row(self, rows: list):
         """
-        Select a row. Set the current assignment to match the selected row.
+        Select row(s). Set the current assignments to match the selected rows.
         If no row is selected, set current assignment to None.
 
-        :param rows: index of selected row
+        :param rows: list of selected rows' indices
         :return: none
         """
         self.selected_row = rows
@@ -534,7 +532,7 @@ class AssignmentTable(Table):
         else:
             self.current_assignment = None
 
-    def set_sorting_order(self, col: int, order: int):
+    def set_sorting_order(self, col: int, order: int) -> list:
         """
         Set the sorting order. Sort the table by the designated column and
         order.
@@ -544,7 +542,7 @@ class AssignmentTable(Table):
         :param col: column to be sorted by
         :param order: sorting order
 
-        :return: none
+        :return: list of all assignments sorted in the new order
         """
 
         self.sorting_order = (col, order)
@@ -569,7 +567,7 @@ class AssignmentTable(Table):
                     key=lambda assignment: assignment.students_submitted_count,
                     reverse=True)
 
-        self.set_rows_content(assignments)
+        return assignments
 
 
 class SubmissionsTable(Table):
@@ -590,14 +588,6 @@ class SubmissionsTable(Table):
 
         Set all attributes. Set the sorting order of the table to sort by the
         first column in ascending order.
-        Attributes stored:
-            _assignment: Assignment object
-            row_color: a dictionary with students' usernames as keys and the
-                       corresponding color indicator for fetching status as
-                       values
-            current_student: Student object representing selected student
-            sorting_order: a tuple of type
-                (column by which table is sorted, current sorting order)
 
         :param assignment: parent assignment of the submission
         """
@@ -610,7 +600,8 @@ class SubmissionsTable(Table):
         self.set_column_count(3)
         self.set_column_headers(['Student', 'Last Submission Time',
                                  'Submission Count'])
-        self.set_sorting_order(0, 0)
+        submissions = self.set_sorting_order(0, 0)
+        self.set_rows_content(submissions)
 
     def set_rows_content(self, submissions):
         """
@@ -643,13 +634,13 @@ class SubmissionsTable(Table):
         :return: none
         """
         if submission.submission_count == 0:
-            self.row_color[submission.student.username] = 0 # red
+            self.row_color[submission.student.username] = 0  # red
         elif submission.is_fetched():
-            self.row_color[submission.student.username] = 1 # green
+            self.row_color[submission.student.username] = 1  # green
         else:
-            self.row_color[submission.student.username] = 2 # blue
+            self.row_color[submission.student.username] = 2  # blue
 
-    def set_sorting_order(self, col: int, order: int):
+    def set_sorting_order(self, col: int, order: int) -> list:
         """
         Set the sorting order. Sort the table by the designated column and
         order.
@@ -659,7 +650,7 @@ class SubmissionsTable(Table):
         :param col: column to be sorted by
         :param order: sorting order
 
-        :return: none
+        :return: list of submissions sorted in the new order
         """
         self.sorting_order = (col, order)
 
@@ -693,21 +684,21 @@ class SubmissionsTable(Table):
                     key=lambda submission: submission.submission_count,
                     reverse=True)
 
-        self.set_rows_content(submissions)
+        return submissions
 
-    def select_row(self, row: int):
+    def select_row(self, rows: list):
         """
-        Select a row. Set the current student to match the selected row.
+        Select row(s). Set the current student to match the selected row.
         If no row is selected, set current student to None.
 
-        :param row: index of selected row
+        :param rows: indices of selected rows
         :return: none
         """
-        self.selected_row = row
+        self.selected_row = rows
 
-        if row is not None:
+        if rows is not None:
             for student in self._assignment.parent_class.get_student_list():
-                if self.rows_content[row][0] == student.username:
+                if self.rows_content[rows[0]][0] == student.username:
                     self.current_student = student
                     break
         else:

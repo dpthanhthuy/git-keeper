@@ -1,12 +1,27 @@
+# Copyright 2018 Thuy Dinh
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 """
-Provides a graphical user interface for viewing classes, assignments,
+Provides the graphical user interface for viewing classes, assignments,
 submissions and fetching submissions from students.
 """
 
 import os
 
 from PyQt5.QtCore import Qt, pyqtSlot
-from PyQt5.QtGui import QColor, QBrush, QFocusEvent, QCloseEvent
+from PyQt5.QtGui import QColor, QBrush, QFocusEvent
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, \
     QComboBox, QPushButton, QLabel, QTableWidget, QMessageBox, \
     QAbstractItemView, QTableWidgetItem, QToolButton, QFileDialog, \
@@ -16,6 +31,7 @@ from gkeepclient.client_configuration import config
 from gkeepclient.server_interface import ServerInterfaceError
 from gkeepcore.gkeep_exception import GkeepException
 from gkeepgui.class_information import Assignment
+from gkeepgui.fetch_thread import FetchThread
 from gkeepgui.gui_configuration import gui_config
 from gkeepgui.gui_exception import GuiFileException
 from gkeepgui.submissions_json import submissions_paths
@@ -29,7 +45,7 @@ class MainWindow(QMainWindow):
     Draws the main window and provides three views for class, assignment, and
     student.
 
-    Displays the popup error message if a ServerInterfaceError is raised.
+    Displays an error message if an exception is raised.
     """
 
     def __init__(self):
@@ -51,7 +67,7 @@ class MainWindow(QMainWindow):
     def show_class_window(self):
         """
         Set the class view as the central widget. Store ClassWindowInfo as an
-        attribute. Display the popup error message if a ServerInterfaceError
+        attribute. Display the error message if an exception
         is raised.
 
         :return: none
@@ -60,12 +76,11 @@ class MainWindow(QMainWindow):
         try:
             self.class_window_info = ClassWindowInfo()
         except ServerInterfaceError as e:
-            error = e.__repr__()
-            self.network_error_message(error)
+            self.show_network_error_message(e)
         except GuiFileException as e:
-            self.missing_dir_message(e.get_path())
+            self.show_missing_dir_message(e.get_path())
         except GkeepException as e:
-            self.error_message(e)
+            self.show_error_message(e)
 
         if self.class_window_info is not None:
             self.setCentralWidget(ClassWindow(self.class_window_info))
@@ -86,9 +101,9 @@ class MainWindow(QMainWindow):
             student_window_info = StudentWindowInfo(class_name, username)
             self.setCentralWidget(StudentWindow(student_window_info))
         except ServerInterfaceError as e:
-            self.network_error_message(e)
+            self.show_network_error_message(e)
         except GkeepException as e:
-            self.error_message(e)
+            self.show_error_message(e)
 
     def show_assignment_window(self, class_name: str, assignment: str):
         """
@@ -98,6 +113,7 @@ class MainWindow(QMainWindow):
 
         :param class_name: name of the class
         :param assignment: name of the assignment
+
         :return: none
         """
         try:
@@ -105,26 +121,35 @@ class MainWindow(QMainWindow):
                                                           assignment)
             self.setCentralWidget(AssignmentWindow(assignment_window_info))
         except ServerInterfaceError as e:
-            self.network_error_message(e)
+            self.show_network_error_message(e)
 
-    def error_message(self, e):
-        message_box = QMessageBox()
-        message_box.setText(e)
-        close_button = message_box.addButton(QMessageBox.Close)
-        message_box.show()
-        message_box.exec()
-
-    def network_error_message(self, error):
+    def show_error_message(self, e):
         """
-        Display the popup error message.
-        Try to connect if press Retry.
-        Quit if press close.
+        Pop up a message box displaying the exception raised.
 
-        :param error: content of the error message
+        :param e: exception raised
+
         :return: none
         """
         message_box = QMessageBox()
-        message_box.setText(error)
+        message_box.setText(e)
+        message_box.addButton(QMessageBox.Close)
+        message_box.show()
+        message_box.exec()
+
+    def show_network_error_message(self, e):
+        """
+        Display the network error message.
+        Try to connect if press Retry.
+        Quit if press close.
+
+        :param e: ServerInterfaceError exception raised
+
+        :return: none
+        """
+
+        message_box = QMessageBox()
+        message_box.setText(e)
         retry_button = message_box.addButton('Retry', QMessageBox.AcceptRole)
         close_button = message_box.addButton(QMessageBox.Close)
         message_box.show()
@@ -135,16 +160,24 @@ class MainWindow(QMainWindow):
                 self.class_window_info = ClassWindowInfo()
             except ServerInterfaceError as e:
                 message_box.close()
-                self.network_error_message(e.__repr__())
+                self.show_network_error_message(e)
 
         if message_box.clickedButton() == close_button:
             self.hide()
 
-    def missing_dir_message(self, path):
+    def show_missing_dir_message(self, path):
+        """
+        Display the error message for directory specified in the JSON file
+        but does not exist.
+
+        :param path: path in JSON file
+
+        :return: none
+        """
         message_box = QMessageBox(self)
         message_box.setText('Path from submissions_path.json does not '
                             'exist: {}'.format(path))
-        # message_box.setDetailedText('Remove path from JSON file?')
+
         close_button = message_box.addButton(QMessageBox.Close)
         message_box.show()
         message_box.exec()
@@ -154,24 +187,46 @@ class MainWindow(QMainWindow):
 
 
 class Table(QTableWidget):
+    """
+    Base class for the table widgets displaying the assignments and
+    submissions.
+
+    Provide method for redrawing the previous states of the table widgets when
+    the keyboard/mouse focus leaves them.
+    """
+
     def __init__(self):
+        """
+        Constructor.
+
+        The inWindowClick attribute stores whether the focusOutEvent was
+        caused by a click inside the main window.
+        """
         super().__init__()
-        self.headerClicked = True
+        self.inWindowClick = True
 
     def focusOutEvent(self, e: QFocusEvent):
+        """
+        Redraw the tables when they lose focus. If the focusOutEvent was
+        caused by a click inside the main window, do nothing.
+
+        :param e: focusOutEvent
+
+        :return: none
+        """
         super(Table, self).focusOutEvent(e)
 
-        if not self.headerClicked:
+        if not self.inWindowClick:
             self.parentWidget().show_assignments_table()
             self.parentWidget().show_submissions_table()
             self.parentWidget().show_submissions_state()
         else:
-            self.headerClicked = False
+            self.inWindowClick = False
 
 
 class ClassWindow(QWidget):
     """
-    Provides the widget and functionality for viewing classes, assignments,
+    Provide the widget and functionality for viewing classes, assignments,
     submissions.
     """
 
@@ -216,6 +271,9 @@ class ClassWindow(QWidget):
         self.fetch_message.setMinimumWidth(500)
         self.fetch_message.setReadOnly(True)
 
+        # number of fetch threads active
+        self.thread_count = 0
+
         self.toolbar_layout.addWidget(self.class_menu, Qt.AlignLeft)
         self.toolbar_layout.addWidget(self.refresh_button, Qt.AlignRight)
         self.toolbar_layout.addWidget(self.fetch_button, Qt.AlignRight)
@@ -250,6 +308,8 @@ class ClassWindow(QWidget):
             self.refresh_button.setChecked(False)
             try:
                 self.window_info.refresh()
+                self.class_menu.clear()
+                self.create_class_menu()
                 self.show_assignments_table()
                 self.show_submissions_table()
                 self.show_submissions_state()
@@ -257,7 +317,7 @@ class ClassWindow(QWidget):
                 self.close()
                 self.parentWidget().network_error_message(e)
             except GkeepException as e:
-                self.popup_error_message(e)
+                self.display_error_message(e)
 
     @pyqtSlot(bool)
     def fetch_button_clicked(self, checked: bool):
@@ -270,11 +330,7 @@ class ClassWindow(QWidget):
         Fetch the selected assignment, or fetch all if no assignment is
         selected.
 
-        Display the popup error message if the directory at the given path
-        does not exist.
-
-        Change the submissions table to reflect the new fetching state and
-        information.
+        Redraw the window.
 
         :param checked: True if fetch button is clicked, False otherwise
         :return: none
@@ -287,81 +343,163 @@ class ClassWindow(QWidget):
             self.fetch(assignments)
             self.refresh_button_clicked(True)
 
-    def fetch(self, assignments):
-        if assignments is not None and len(assignments) > 0:
-            self.show_fetch_message()
+    def fetch(self, assignments: list):
+        """
+        Fetch a list of assignments
+        :param assignments: list of Assignment objects
 
+        :return: none
+        """
+        if assignments is not None and len(assignments) > 0:
             for assignment in assignments:
                 if assignment.is_published:
                     try:
-                        path = submissions_paths.get_path(assignment.name,
-                                             self.window_info.current_class.name)
-                    except FileNotFoundError as e:
-                        submissions_paths.create_json()
-                        path = None
+                        path = submissions_paths.get_path(
+                            assignment.name,
+                            self.window_info.current_class.name)
+                    except FileNotFoundError:
+                        # If the JSON file does not exist, create it
+                        try:
+                            submissions_paths.create_json()
+                        except ValueError as e:
+                            self.display_error_message(e)
 
+                        path = None
+                    except OSError as e:
+                        self.display_error_message(e)
+
+                    # If no path has been specified for the assignment, look in
+                    # config file
                     if path is None:
                         try:
-                            path = config.submissions_path
+                            if config.submissions_path is not None:
+                                path = os.path.join(
+                                    config.submissions_path,
+                                    assignment.parent_class.name)
                         except GkeepException as e:
-                            self.popup_error_message(e)
+                            self.display_error_message(e)
 
+                        # If no path has been specified in the config file,
+                        # display the file explorer.
                         if path is None:
                             file_dialog = QFileDialog(self, Qt.Popup)
                             path = file_dialog.getExistingDirectory()
 
+                            # If the file is explorer is closed without any
+                            # directory chosen, set path to None
                             if path == '':
                                 path = None
 
                     if path is not None:
                         try:
+                            # Log the path of the directory to be fetched to
+                            # in the JSON file.
                             submissions_paths.set_path(
                                 assignment.name,
                                 self.window_info.current_class.name, path)
-                        except FileNotFoundError as e:
-                            submissions_paths.create_json()
+                        except FileNotFoundError:
+                            # JSON file has been deleted.
+                            try:
+                                submissions_paths.create_json()
+                            except ValueError as e:
+                                self.display_error_message(e)
+
                             submissions_paths.set_path(
                                 assignment.name,
                                 self.window_info.current_class.name, path)
 
                         try:
+                            # In the focusOutEvent, the tables are not redrawn
+                            self.assignments_table.inWindowClick = True
+
+                            # If there are no active fetch threads, clear the
+                            # pop-up fetch message.
+                            if self.thread_count == 0:
+                                self.fetch_message.clear()
+
+                            self.fetch_message.show()
+
+                            # Show fetch message on top of main window
+                            self.fetch_message.raise_()
+
                             self.print_fetch_message(assignment)
-                            self.window_info.fetch_assignment(assignment)
-                            self.show_success_fetch_message()
+
+                            # Create the thread to fetch the message
+                            fetch_thread = FetchThread(self.window_info)
+                            self.thread_count += 1
+                            fetch_thread.add_assignment(assignment)
+                            # When the thread exits, call the
+                            # show_succes_fetch_message() method
+                            fetch_thread.finished.connect(
+                                self.show_success_fetch_message)
+                            fetch_thread.start()
+                            # After 100ms, time out to redraw fetch message
+                            fetch_thread.wait(100)
+
+                            # Refresh after fetching
+                            self.refresh_button_clicked(True)
+
+                        # The directory to be fetched to does not exist
                         except GuiFileException as e:
                             self.no_dir_message(e.get_path(), assignment)
                         except GkeepException as e:
-                            self.popup_error_message(e)
+                            self.display_error_message(e)
+                        except OSError as e:
+                            self.display_error_message(e)
 
     @pyqtSlot(bool)
     def fetch_all_button_clicked(self, checked: bool):
+        """
+        PyQT slot that handles the event of clicking the Fetch All button.
+
+        :param checked: whether the button is checked
+
+        :return: none
+        """
+
         if checked:
             self.fetch_all_button.setChecked(False)
-            assignments = self.window_info.current_class.get_assignment_list()
-            self.fetch(assignments)
+
+            try:
+                assignments = \
+                    self.window_info.current_class.get_assignment_list()
+                self.fetch(assignments)
+            except OSError as e:
+                self.display_error_message(e)
+
             self.refresh_button_clicked(True)
 
-    def show_fetch_message(self):
-        self.fetch_message.clear()
-        self.fetch_message.show()
-
     def print_fetch_message(self, assignment: Assignment):
+        """
+        Display the fetching message.
+
+        :param assignment: Assignment object of the assignment to be fetched
+
+        :return: none
+        """
         text = 'Fetching submissions for {} in class {}'.\
             format(assignment.name, assignment.parent_class.name)
         self.fetch_message.appendPlainText(text)
 
     def show_success_fetch_message(self):
+        """
+        Display 'Success' after fetching successfully.
+
+        :return: none
+        """
         self.fetch_message.appendPlainText('Success!')
+        self.thread_count -= 1
 
     def no_dir_message(self, path, assignment=None):
         """
         Display the popup message for directory not found. Ask to create the
         directory.
 
-        :param path: path of directory
+        :param path: path of missing directory
+        :param assignment: assignment to store in directory
+
         :return: none
         """
-
         message_box = QMessageBox(self)
         message_box.setText(path + ' does not exist. Create it now?')
         yes_button = message_box.addButton('Yes', QMessageBox.YesRole)
@@ -378,13 +516,13 @@ class ClassWindow(QWidget):
                 else:
                     self.window_info.fetch_assignments()
             except GkeepException as e:
-                self.popup_error_message(e)
-
+                self.display_error_message(e)
+            except OSError as e:
+                self.display_error_message(e)
         else:
             message_box.hide()
             message_box.close()
             self.refresh_button_clicked(True)
-
 
     @pyqtSlot()
     def assignments_table_selection_changed(self):
@@ -407,7 +545,7 @@ class ClassWindow(QWidget):
             try:
                 self.window_info.select_assignment(current_rows)
             except GkeepException as e:
-                self.popup_error_message(e)
+                self.display_error_message(e)
 
         self.show_submissions_table()
 
@@ -421,9 +559,9 @@ class ClassWindow(QWidget):
         """
         try:
             self.window_info.select_submission(
-                self.submissions_table.currentRow())
+                [self.submissions_table.currentRow()])
         except GkeepException as e:
-            self.popup_error_message(e)
+            self.display_error_message(e)
 
     def create_class_menu(self):
         """
@@ -452,9 +590,9 @@ class ClassWindow(QWidget):
         description text accordingly.
 
         :param index: index of the new class
+
         :return: none
         """
-
         self.window_info.change_class(index)
         self.set_label()
         self.show_assignments_table()
@@ -474,7 +612,6 @@ class ClassWindow(QWidget):
 
         :return: none
         """
-
         self.assignments_table.destroy()
         self.assignments_table.hide()
         self.table_layout.removeWidget(self.assignments_table)
@@ -490,6 +627,7 @@ class ClassWindow(QWidget):
             self.assignments_table.setHorizontalHeaderItem(index, header_item)
             index += 1
 
+        # Set the sorting order symbol
         if current_order[1] == 0:
             symbol = '▲'
         else:
@@ -520,7 +658,7 @@ class ClassWindow(QWidget):
 
         # set the selection mode to single row only
         self.submissions_table.setSelectionMode(
-            QAbstractItemView.SingleSelection)
+            QAbstractItemView.ExtendedSelection)
         self.assignments_table.setSelectionBehavior(
             QAbstractItemView.SelectRows)
 
@@ -553,7 +691,6 @@ class ClassWindow(QWidget):
 
         :return: none
         """
-
         self.submissions_table.destroy()
         self.submissions_table.hide()
         self.table_layout.removeWidget(self.submissions_table)
@@ -561,7 +698,7 @@ class ClassWindow(QWidget):
         info = self.window_info.current_submissions_table
         self.table_layout.addWidget(self.submissions_table)
 
-        if info is not None: # check if there is a current submissions table
+        if info is not None:  # check if there is a current submissions table
             self.submissions_table.setRowCount(info.row_count)
             self.submissions_table.setColumnCount(info.col_count)
             index = 0
@@ -573,7 +710,7 @@ class ClassWindow(QWidget):
 
             current_order = info.sorting_order
 
-            # ascending order
+            # Set the sorting order symbol
             if current_order[1] == 0:
                 symbol = '▲'
             else:
@@ -582,8 +719,8 @@ class ClassWindow(QWidget):
             col_name = '{} {}'.format(
                 self.submissions_table.horizontalHeaderItem(
                     current_order[0]).text(), symbol)
-            self.submissions_table.setHorizontalHeaderItem(current_order[0],
-                                          QTableWidgetItem(col_name))
+            self.submissions_table.setHorizontalHeaderItem(
+                current_order[0], QTableWidgetItem(col_name))
 
             row_index = 0
             col_index = 0
@@ -629,70 +766,115 @@ class ClassWindow(QWidget):
     @pyqtSlot(int)
     def sort_submissions_table(self, col: int):
         """
-        PyQT slot for signal emitted when clicking on a column's header.
-        Sort column.
+        PyQT slot for signal emitted when clicking on the submission's table
+        header.
+        Sort the selected column.
 
         :param col: index of selected column
+
         :return: none
         """
         current_order = self.window_info.change_submissions_sorting_order(col)
-        self.submissions_table.headerClicked = True
+        self.submissions_table.inWindowClick = True
 
         self.show_submissions_table()
 
     @pyqtSlot(int)
     def sort_assignments_table(self, col: int):
         """
+        PyQT slot for the signal emitted when clicking on the assignment's
+        table header.
+        Sort the selected column.
 
+        :param col: index of selected column
 
-        :param col:
-        :return:
+        :return: none
         """
         self.window_info.change_assignments_sorting_order(col)
-        self.assignments_table.headerClicked = True
+        self.assignments_table.inWindowClick = True
         self.show_assignments_table()
 
     def show_submissions_state(self):
+        """
+        Draw the background colors of the submissions table.
+
+        :return: none
+        """
         info = self.window_info.current_submissions_table
 
         if info is not None:
 
             for row in range(self.submissions_table.rowCount()):
                 username = self.submissions_table.item(row, 0).text()
-                color = QColor(*gui_config.submission_color[info.row_color[username]])
+                color = QColor(
+                    *gui_config.submission_color[info.row_color[username]])
                 brush = QBrush(color)
 
                 for col in range(self.submissions_table.columnCount()):
                     cell = self.submissions_table.item(row, col)
                     cell.setBackground(brush)
 
-
     @pyqtSlot()
     def assignments_table_double_clicked(self):
+        """
+        PyQT slot for signal emitted when double clicking on a row in the
+        assignments table.
+
+        :return: none
+        """
         self.close()
-        self.parentWidget().show_assignment_window(self.window_info.current_class.name,
-                                                   self.window_info.current_assignments_table.current_assignment)
+        class_name = self.window_info.current_class.name
+        assignment = \
+            self.window_info.current_assignments_table.current_assignment
+        self.parentWidget().show_assignment_window(class_name, assignment)
 
     @pyqtSlot()
     def submissions_table_double_clicked(self):
-        self.close()
-        self.parentWidget().show_student_window(self.window_info.current_class.name, self.window_info.current_submissions_table.current_student.username)
+        """
+        PyQT slot for signal emitted when double clicking on a row in the
+        submissions table.
 
-    def popup_error_message(self, e):
+        :return: none
+        """
+        self.close()
+        class_name = self.window_info.current_class.name
+        username = \
+            self.window_info.current_submissions_table.current_student.username
+        self.parentWidget().show_student_window(class_name, username)
+
+    def display_error_message(self, e):
+        """
+        Display the error message for the exception raised.
+
+        :param e: exception raised
+
+        :return: none
+        """
         message_box = QMessageBox()
-        message_box.setText(e.__repr__())
+        message_box.setText(e)
         close_button = message_box.addButton(QMessageBox.Close)
         message_box.show()
         message_box.exec()
 
 
 class StudentWindow(QWidget):
+    """
+    Provide the widget for viewing information about a student.
+    """
+
     def __init__(self, info: StudentWindowInfo):
+        """
+        Constructor.
+        Create and set the necessary attributes for the widget.
+
+        :param info: a StudentWindowInfo instance that stores information
+        about the student window
+        """
         super().__init__()
 
         try:
             self.student_window_info = info
-        except ServerInterfaceError as e:
+        except ServerInterfaceError:
             pass
 
         self.setWindowTitle(self.student_window_info.title)
@@ -711,13 +893,32 @@ class StudentWindow(QWidget):
 
     @pyqtSlot(bool)
     def back_button_clicked(self, checked: bool):
+        """
+        PyQT slot for handling the signal emitted when the back button is
+        checked.
+
+        :param checked: True if the back button is checked, False otherwise
+
+        :return: none
+        """
         if checked:
             self.close()
             self.parentWidget().show_class_window()
 
 
 class AssignmentWindow(QWidget):
+    """
+    Provide the widget for viewing information about an assignment.
+    """
+
     def __init__(self, info: AssignmentWindowInfo):
+        """
+        Constructor.
+        Create and set the necessary attributes for the widget.
+
+        :param info: an AssignmentWindowInfo instance storing information
+        about the assignment window
+        """
         super().__init__()
         self.assignment_window_info = info
         self.setWindowTitle(self.assignment_window_info.title)
@@ -732,6 +933,14 @@ class AssignmentWindow(QWidget):
 
     @pyqtSlot(bool)
     def back_button_clicked(self, checked: bool):
+        """
+        PyQT slot for handling the signal emitted when the back button is
+        checked.
+
+        :param checked: rue if the back button is checked, False otherwise
+
+        :return: none
+        """
         if checked:
             self.close()
             self.parentWidget().show_class_window()
